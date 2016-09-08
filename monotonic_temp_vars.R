@@ -60,6 +60,43 @@ getTable <- function(rcps, gcms, verbose=TRUE, n.cores=32){
     arrange(Scenario, Model, Year, Month)
 }
 
+# calling function to traverse files and organize output
+getFreqMap <- function(mon.idx, rcps, gcms, verbose=TRUE, n.cores=32){
+  slist2 <- vector("list", length(gcms))
+  for(i in seq_along(gcms)){
+    slist1 <- vector("list", length(rcps))
+    for(j in seq_along(rcps)){
+      files <- map(c("tasmin", "tas", "tasmax"),
+                   ~list.files(file.path(gcms[i], rcps[j], .x), pattern=".tif$", full=TRUE))
+      if(length(files[[1]]) == 0) next
+      
+      f <- function(i, x){
+        x <- map(x, ~.x[as.numeric(sapply(strsplit(basename(.x), "_"), "[", 7)) == i])
+        for(z in seq_along(x[[1]])){
+          rlist <- map(seq_along(x), ~readAll(raster(x[[.x]][z])))
+          r1 <- rlist[[2]] - rlist[[1]] < 0
+          r2 <- rlist[[3]] - rlist[[2]] < 0
+          if(z == 1){
+            r_lwr_freq <- r1
+            r_upr_freq <- r2
+          } else {
+            r_lwr_freq <- r_lwr_freq + r1
+            r_upr_freq <- r_upr_freq + r2
+          }
+        }
+        list(r_lwr_freq, r_upr_freq)
+      }
+      
+      slist <- mclapply(mon.idx, f, files, mc.cores=n.cores)
+      slist1[[j]] <- transpose(slist) %>% map(~stack(.x))
+      if(verbose) print(paste("Model:", gcms[i], "(", i, "of", length(gcms), ").",
+                              "Scenario:", rcps[j], "(", j, "of", length(rcps), ")."))
+    }
+    slist2[[i]] <- slist1
+  }
+  slist2
+}
+
 # alternative function to handle raw gcm .nc file inputs
 checkMonotonicFromBrick <- function(i, x, rcp, gcm){
   kel <- 273.15
@@ -114,9 +151,10 @@ if(interactive()){ # choose one, comment the other
   save(d, ncells, file=file.path(tmpDir, "monotonic_temp_vars.RData"))
   #save(d, ncells, file=file.path(tmpDir, "monotonic_temp_vars_raw.RData"))
 } else { # the difference is with ak-can extent 2km maps, must process one set of file per slurm job to avoid crash
+  slist <- getFreqMap(1:12, rcps[j], gcms[i])
   d <- getTable(rcps[j], gcms[i])
   file <- paste0(tmpDir, "/akcan2km_monotonic_temp_vars_", rcps[j], "_", gcms[i], ".RData")
-  if(nrow(d) > 0) save(d, ncells, file=file)
+  if(nrow(d) > 0) save(slist, d, ncells, file=file)
 }
 
 # interactive cleanup following slurm jobs

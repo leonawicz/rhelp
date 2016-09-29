@@ -6,6 +6,7 @@ if(interactive()) { gcm <- "IPSL-CM5A-LR"; rcp <- "rcp85" } else {
 }
 
 library(parallel); library(rgdal); library(raster); library(purrr)
+rasterOptions(chunksize=10e10, maxmemory=10e11)
 
 setwd("/workspace/Shared/Tech_Projects/EPSCoR_Southcentral/project_data")
 rawDir <- "cmip5/prepped"

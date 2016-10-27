@@ -114,7 +114,8 @@ g <- ggplot(d2, aes(MidMonthDay, temperature, group=case, ymin=0, ymax=temperatu
   geom_segment(data=filter(d2, LOGS > 0), aes(x=DOT, y=0, xend=DOF, yend=0), colour="greenyellow", size=2) +
   geom_point(aes(x=DOT, y=0), shape=21, colour="orange", fill="white", size=4, stroke=2) +
   geom_point(aes(x=DOF, y=0), shape=21, colour="dodgerblue", fill="white", size=4, stroke=2) +
-  facet_wrap(~case, scales="fixed") + theme1 + ggtitle("Linear slope model for estimating thaw and freeze days and length of growing season\nNormal seasonality and eight edge cases")
+  facet_wrap(~case, scales="fixed") + theme1 +
+  ggtitle("Linear slope model for estimating thaw and freeze days and length of growing season\nNormal seasonality and eight edge cases")
 
 png("C:/github/rhelp/plots/dot_dof_logs_edgeCases.png", width=4800, height=3600, res=300)
 g

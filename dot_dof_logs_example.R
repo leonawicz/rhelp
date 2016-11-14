@@ -2,8 +2,8 @@
 # 0 and 365 are special, indicating always frozen (freeze: 0, thaw: 365, grow: 0) or always thawed (freeze: 365, thaw: 0, grow: 365)
 
 # This function operates on a vector x of 12 monthly average temperatures
-tfg_days <- function(x){
-	if(any(x==0, na.rm=T)) x[x == 0] <- -0.0001 # need to treat zero as freezing (working with signs)
+tfg_days <- function(x, df=FALSE, ...){
+  if(any(x==0, na.rm=T)) x[x == 0] <- -0.0001 # need to treat zero as freezing (working with signs)
   s1 <- sign(x) # positive or negative monthly temps
   s <- s1[1:11]*s1[2:12] # products of consecutive months' signs: positive indicates no change; negative indicates a potential freeze or thaw transition
   ind <- sort(c(which(s < 0), which(s < 0) + 1)) # may be length zero (no transitions)
@@ -66,10 +66,10 @@ tfg_days <- function(x){
     stop(print(paste("Condition unconsidered:", paste(x, collapse=" "))))
   }
   cases <- c("Normal seasonality", "Missing data", "Always thawed", "Always frozen",
-    "Unobserved freeze", "Unobserved thaw", "Spurious late thaw", "Spurious early freeze", "Extra freeze/thaw transitions")
-  data.frame(DOT=dot, DOF=dof, LOGS=grow, case=cases[case+1], stringsAsFactors=FALSE)
+             "Unobserved freeze", "Unobserved thaw", "Spurious late thaw", "Spurious early freeze", "Extra freeze/thaw transitions")
+  if(df) return(data.frame(DOT=dot, DOF=dof, LOGS=grow, case=cases[case+1], stringsAsFactors=FALSE))
+  c(dot, dof, grow)
 }
-
 
 # For processing example and graphing
 library(dplyr)
@@ -92,7 +92,7 @@ x <- list(
 )
 
 # Apply function over x and clean up for plotting
-d <- map(x, ~tfg_days(.x)) %>% bind_rows %>% mutate(case=factor(case, levels=case))
+d <- map(x, ~tfg_days(.x, df=TRUE)) %>% bind_rows %>% mutate(case=factor(case, levels=case))
 d2 <- left_join(d, as.data.frame(x) %>% setNames(d$case) %>%
   mutate(Month=factor(month.abb, levels=month.abb), MidMonthDay=midpoint(Month)) %>%
   gather(case, temperature, 1:9) %>% mutate(case=factor(case, levels=unique(case))))
@@ -120,3 +120,13 @@ g <- ggplot(d2, aes(MidMonthDay, temperature, group=case, ymin=0, ymax=temperatu
 png("C:/github/rhelp/plots/dot_dof_logs_edgeCases.png", width=4800, height=3600, res=300)
 g
 dev.off()
+
+# Small production test
+setwd("/workspace/Shared/Tech_Projects/EPSCoR_Southcentral/project_data/downscaled_FINAL_OCT/5ModelAvg/rcp60/tas")
+library(parallel)
+library(raster)
+rasterOptions(chunksize=10e10, maxmemory=10e11)
+files <- list.files(pattern=".tif$")
+files <- split(files, rep(1:(length(files)/12), each=1))
+tfg_par <- function(files) calc(brick(stack(files, quick=TRUE)), tfg_days)
+system.time( out <- mclapply(files, tfg_par, mc.cores=32) )
